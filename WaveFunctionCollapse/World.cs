@@ -1,7 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Runtime.CompilerServices;
-
-namespace WaveFunctionCollapse
+﻿namespace WaveFunctionCollapse
 {
     public enum TileType
     {
