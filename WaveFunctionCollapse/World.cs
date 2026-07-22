@@ -40,12 +40,12 @@ namespace WaveFunctionCollapse
         public int sizeX;
         public int sizeY;
 
-        private TileType[,] grid;
-        private WfcTile[,] wfcGrid;
+        private readonly TileType[,] grid;
+        private readonly WfcTile[,] wfcGrid;
 
         public World(uint sizeX, uint sizeY, int seed) : this(sizeX, sizeY)
         {
-            Random rand = new Random(seed);
+            Random rand = new(seed);
 
             List<WfcTile> toCollapse = [];
             HashSet<WfcTile> collapsed = [];
@@ -75,12 +75,12 @@ namespace WaveFunctionCollapse
                 collapsed.Add(lowestEntropyTile);
 
                 Point[] neighborPositions =
-                {
+                [
                     new Point((int)lowestEntropyTile.X - 1, (int)lowestEntropyTile.Y),
                     new Point((int)lowestEntropyTile.X + 1, (int)lowestEntropyTile.Y),
                     new Point((int)lowestEntropyTile.X, (int)lowestEntropyTile.Y - 1),
                     new Point((int)lowestEntropyTile.X, (int)lowestEntropyTile.Y + 1)
-                };
+                ];
 
                 foreach (Point pos in neighborPositions)
                 {
@@ -126,9 +126,9 @@ namespace WaveFunctionCollapse
         private readonly uint x;
         private readonly uint y;
         private TileType[] neigbours;
-        private List<TileType> possibleStates = new List<TileType>(TileTypes.Any);
+        private List<TileType> possibleStates = [.. TileTypes.Any];
         private byte entropy;
-        private World world;
+        private readonly World world;
         private bool collapsed = false;
 
         public WfcTile(uint x, uint y, World world)
@@ -146,7 +146,7 @@ namespace WaveFunctionCollapse
             int tileTypeIndex = rand.Next(possibleStates.Count);
             TileType chosenTileType = possibleStates[tileTypeIndex];
 
-            possibleStates = new List<TileType> { chosenTileType };
+            possibleStates = [chosenTileType];
             entropy = 1;
             collapsed = true;
 
