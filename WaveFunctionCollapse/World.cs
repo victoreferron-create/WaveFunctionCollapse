@@ -17,7 +17,7 @@ namespace WaveFunctionCollapse
             TileType.Sea,
             TileType.Beach,
             TileType.Plains,
-            TileType.Forest
+            TileType.Forest,
         ];
 
         private static readonly Dictionary<TileType, ConsoleColor> tileColors = new()
@@ -26,7 +26,7 @@ namespace WaveFunctionCollapse
             { TileType.Beach,  ConsoleColor.Yellow },
             { TileType.Plains, ConsoleColor.Green },
             { TileType.Forest, ConsoleColor.DarkGreen },
-            { TileType.None,   ConsoleColor.Red }
+            { TileType.None,   ConsoleColor.Red },
         };
 
         public static ConsoleColor GetColor(TileType tileType)
