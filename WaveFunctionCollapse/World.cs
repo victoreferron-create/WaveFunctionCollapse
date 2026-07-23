@@ -31,8 +31,8 @@ namespace WaveFunctionCollapse
 
         private static readonly Dictionary<TileType, int> baseWeights = new()
         {
-            { TileType.Sea,    10},
-            { TileType.Beach,  2},
+            { TileType.Sea,    6},
+            { TileType.Beach,  30},
             { TileType.Plains, 10},
             { TileType.Forest, 4},
             { TileType.None,   0},
@@ -197,7 +197,13 @@ namespace WaveFunctionCollapse
                 {
                     if (neighbour == candidate)
                     {
-                        weight += 10; // Bonus for matching neighbor type
+                        weight += 2; // Bonus for matching neighbor type
+                    }
+
+                    if ((candidate == TileType.Plains && neighbour == TileType.Beach) ||
+                        (candidate == TileType.Beach && neighbour == TileType.Plains))
+                    {
+                        weight += 3; // Boosts Plains next to Beach!
                     }
                 }
 
@@ -236,6 +242,7 @@ namespace WaveFunctionCollapse
                         break;
                     case TileType.Beach:
                         impossibleStates.Add(TileType.Forest);
+                        impossibleStates.Add(TileType.Sea);
                         break;
                     case TileType.Plains:
                         impossibleStates.Add(TileType.Sea);
@@ -246,6 +253,13 @@ namespace WaveFunctionCollapse
                         break;
                     case TileType.None:
                         break;
+                }
+
+                bool hasLandOrBeach = neigbours.Any(n => n == TileType.Plains || n == TileType.Forest || n == TileType.Beach);
+
+                if (!hasLandOrBeach)
+                {
+                    impossibleStates.Add(TileType.Beach);
                 }
             }
 
@@ -289,6 +303,13 @@ namespace WaveFunctionCollapse
 
             // Otherwise, treat uncollapsed neighbors as None (no hard constraint yet)
             return TileType.None;
+        }
+
+        public void ForceState(TileType type)
+        {
+            collapsed = true;
+            possibleStates = [type];
+            entropy = 1;
         }
     }
 }

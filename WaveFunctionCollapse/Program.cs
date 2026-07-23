@@ -19,7 +19,7 @@ static void PrintWorld(World world)
 World world;
 try
 {
-    world = new(200, 100, Convert.ToInt32(Console.ReadLine()));
+    world = new(100, 100, Convert.ToInt32(Console.ReadLine()));
 
 } catch (FormatException)
 {
@@ -29,4 +29,3 @@ try
 
 PrintWorld(world);
 Console.ResetColor();
-Console.ReadLine();
