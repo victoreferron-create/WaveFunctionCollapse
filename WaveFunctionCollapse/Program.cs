@@ -29,3 +29,4 @@ try
 
 PrintWorld(world);
 Console.ResetColor();
+Console.ReadLine();

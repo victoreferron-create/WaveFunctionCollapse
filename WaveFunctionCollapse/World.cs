@@ -31,11 +31,11 @@ namespace WaveFunctionCollapse
 
         private static readonly Dictionary<TileType, int> baseWeights = new()
         {
-            { TileType.Sea,    4},
-            { TileType.Beach,  3},
+            { TileType.Sea,    10},
+            { TileType.Beach,  2},
             { TileType.Plains, 10},
-            { TileType.Forest, 6},
-            { TileType.None,   1},
+            { TileType.Forest, 4},
+            { TileType.None,   0},
         };
 
         public static ConsoleColor GetColor(TileType tileType)
@@ -57,27 +57,30 @@ namespace WaveFunctionCollapse
         private readonly TileType[,] grid;
         private readonly WfcTile[,] wfcGrid;
 
+        public WfcTile[,] WfcGrid => wfcGrid;
+
         public World(uint sizeX, uint sizeY, int seed) : this(sizeX, sizeY)
         {
             Random rand = new(seed);
 
-            List<WfcTile> toCollapse = [];
-            HashSet<WfcTile> collapsed = [];
-
-            toCollapse.Add(wfcGrid[0, 0]);
-
-            while (toCollapse.Count != 0)
+            List<WfcTile> uncollapsedTiles = new();
+            for (int x = 0; x < sizeX; x++)
             {
-                foreach (WfcTile tile in toCollapse)
+                for (int y = 0; y < sizeY; y++)
                 {
-                    tile.Update();
+                    uncollapsedTiles.Add(wfcGrid[x, y]);
                 }
+            }
 
+            while (uncollapsedTiles.Count > 0)
+            {
                 WfcTile lowestEntropyTile = null!;
                 byte lowestEntropyValue = byte.MaxValue;
-                foreach (WfcTile tile in toCollapse)
+
+                foreach (WfcTile tile in uncollapsedTiles)
                 {
-                    if (tile.Entropy < lowestEntropyValue)
+                    if (tile.Entropy < lowestEntropyValue ||
+                       (tile.Entropy == lowestEntropyValue && rand.Next(2) == 0))
                     {
                         lowestEntropyValue = tile.Entropy;
                         lowestEntropyTile = tile;
@@ -85,30 +88,27 @@ namespace WaveFunctionCollapse
                 }
 
                 grid[lowestEntropyTile.X, lowestEntropyTile.Y] = lowestEntropyTile.Collapse(rand);
-                toCollapse.Remove(lowestEntropyTile);
-                collapsed.Add(lowestEntropyTile);
+                uncollapsedTiles.Remove(lowestEntropyTile);
 
-                Point[] neighborPositions =
-                [
-                    new Point((int)lowestEntropyTile.X - 1, (int)lowestEntropyTile.Y),
-                    new Point((int)lowestEntropyTile.X + 1, (int)lowestEntropyTile.Y),
-                    new Point((int)lowestEntropyTile.X, (int)lowestEntropyTile.Y - 1),
-                    new Point((int)lowestEntropyTile.X, (int)lowestEntropyTile.Y + 1)
-                ];
+                Queue<WfcTile> propagationQueue = new();
 
-                foreach (Point pos in neighborPositions)
+                PushUncollapsedNeighbors(lowestEntropyTile, propagationQueue);
+
+                while(propagationQueue.Count > 0)
                 {
-                    if (pos.X >= 0 && pos.X < sizeX && pos.Y >= 0 && pos.Y < sizeY)
-                    {
-                        WfcTile neighborTile = wfcGrid[pos.X, pos.Y];
+                    WfcTile current = propagationQueue.Dequeue();
 
-                        if (!collapsed.Contains(neighborTile) && !toCollapse.Contains(neighborTile))
-                        {
-                            toCollapse.Add(neighborTile);
-                        }
+                    byte oldEntropy = current.Entropy;
+                    current.Update();
+
+                    if(current.Entropy < oldEntropy)
+                    {
+                        PushUncollapsedNeighbors(current, propagationQueue);
                     }
                 }
             }
+            
+            
         }
 
         public World(uint sizeX, uint sizeY)
@@ -133,6 +133,30 @@ namespace WaveFunctionCollapse
         {
             return grid[x, y];
         }
+
+        private void PushUncollapsedNeighbors(WfcTile tile, Queue<WfcTile> queue)
+        {
+            Point[] neighborPositions =
+            [
+                new Point((int)tile.X - 1, (int)tile.Y),
+                new Point((int)tile.X + 1, (int)tile.Y),
+                new Point((int)tile.X, (int)tile.Y - 1),
+                new Point((int)tile.X, (int)tile.Y + 1)
+            ];
+
+            foreach (Point pos in neighborPositions)
+            {
+                if (pos.X >= 0 && pos.X < sizeX && pos.Y >= 0 && pos.Y < sizeY)
+                {
+                    WfcTile neighbor = WfcGrid[pos.X, pos.Y];
+                    if (!neighbor.Collapsed && !queue.Contains(neighbor))
+                    {
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+        }
+
     }
 
     public class WfcTile
@@ -151,14 +175,40 @@ namespace WaveFunctionCollapse
             this.y = y;
             this.world = world;
 
-            neigbours = GetNeigbours();
+            neigbours = GetNeigbors();
             entropy = (byte)possibleStates.Count;
         }
 
         public TileType Collapse(Random rand)
         {
-            int tileTypeIndex = rand.Next(possibleStates.Count);
-            TileType chosenTileType = possibleStates[tileTypeIndex];
+            if (possibleStates.Count == 0)
+            {
+                possibleStates = [TileType.None];
+            }
+
+            // Build the weighted pool ONLY when picking the winning tile
+            List<TileType> weightedPool = new();
+
+            foreach (TileType candidate in possibleStates)
+            {
+                int weight = TileTypes.GetBaseWeight(candidate);
+
+                foreach (TileType neighbour in neigbours)
+                {
+                    if (neighbour == candidate)
+                    {
+                        weight += 10; // Bonus for matching neighbor type
+                    }
+                }
+
+                for (int i = 0; i < weight; i++)
+                {
+                    weightedPool.Add(candidate);
+                }
+            }
+
+            // Select randomly from the weighted pool
+            TileType chosenTileType = weightedPool[rand.Next(weightedPool.Count)];
 
             possibleStates = [chosenTileType];
             entropy = 1;
@@ -171,10 +221,9 @@ namespace WaveFunctionCollapse
         {
             if (collapsed) return;
 
-            neigbours = GetNeigbours();
+            neigbours = GetNeigbors();
 
-            possibleStates = [];
-
+            // 1. Gather all tile types forbidden by neighboring tiles
             HashSet<TileType> impossibleStates = [TileType.None];
 
             foreach (TileType type in neigbours)
@@ -197,48 +246,19 @@ namespace WaveFunctionCollapse
                         break;
                     case TileType.None:
                         break;
-                    default:
-                        Console.WriteLine("What?");
-                        break;
                 }
             }
 
-            List<TileType> validCandidates = [];
+            // 2. Filter down existing possible states by removing forbidden ones
+            possibleStates.RemoveAll(state => impossibleStates.Contains(state));
 
-            foreach (TileType candidate in TileTypes.Any)
+            // 3. Fallback to None if a contradiction occurred (0 options left)
+            if (possibleStates.Count == 0)
             {
-                if (!impossibleStates.Contains(candidate))
-                {
-                    validCandidates.Add(candidate);
-                }
+                possibleStates = [TileType.None];
             }
 
-            if (validCandidates.Count == 0)
-            {
-                validCandidates.Add(TileType.None);
-            }
-
-            List<TileType> weightedPool = [];
-
-            foreach(TileType candidate in validCandidates)
-            {
-                int weight = TileTypes.GetBaseWeight(candidate);
-
-                foreach(TileType neighbour in neigbours)
-                {
-                    if (neighbour == candidate)
-                    {
-                        weight += 8;
-                    }
-                }
-
-                for(int i = 0; i < weight; i++)
-                {
-                    weightedPool.Add(candidate);
-                }
-            }
-
-            possibleStates = weightedPool;
+            // 4. Entropy is simply the number of remaining VALID distinct tile options
             entropy = (byte)possibleStates.Distinct().Count();
         }
 
@@ -247,14 +267,28 @@ namespace WaveFunctionCollapse
         public uint X => x;
         public uint Y => y;
 
-        private TileType[] GetNeigbours()
+        private TileType[] GetNeigbors()
         {
-            TileType left = (X > 0) ? world.GetTileAt(X - 1, Y) : TileType.None;
-            TileType right = (X < world.sizeX - 1) ? world.GetTileAt(X + 1, Y) : TileType.None;
-            TileType up = (Y < world.sizeY - 1) ? world.GetTileAt(X, Y + 1) : TileType.None;
-            TileType down = (Y > 0) ? world.GetTileAt(X, Y - 1) : TileType.None;
+            TileType left = (X > 0) ? GetTileTypeOrNone(X - 1, Y) : TileType.None;
+            TileType right = (X < world.sizeX - 1) ? GetTileTypeOrNone(X + 1, Y) : TileType.None;
+            TileType up = (Y < world.sizeY - 1) ? GetTileTypeOrNone(X, Y + 1) : TileType.None;
+            TileType down = (Y > 0) ? GetTileTypeOrNone(X, Y - 1) : TileType.None;
 
             return [left, right, up, down];
+        }
+
+        private TileType GetTileTypeOrNone(uint x, uint y)
+        {
+            WfcTile tile = world.WfcGrid[x, y]; // Add a getter in World for wfcGrid[x, y]
+
+            // If it's collapsed, return its 1 remaining state.
+            if (tile != null && tile.Collapsed && tile.possibleStates.Count == 1)
+            {
+                return tile.possibleStates[0];
+            }
+
+            // Otherwise, treat uncollapsed neighbors as None (no hard constraint yet)
+            return TileType.None;
         }
     }
 }
