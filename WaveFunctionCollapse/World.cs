@@ -29,9 +29,23 @@ namespace WaveFunctionCollapse
             { TileType.None,   ConsoleColor.Red },
         };
 
+        private static readonly Dictionary<TileType, int> baseWeights = new()
+        {
+            { TileType.Sea,    4},
+            { TileType.Beach,  3},
+            { TileType.Plains, 10},
+            { TileType.Forest, 6},
+            { TileType.None,   1},
+        };
+
         public static ConsoleColor GetColor(TileType tileType)
         {
             return tileColors[tileType];
+        }
+
+        public static int GetBaseWeight(TileType tileType)
+        {
+            return baseWeights[tileType];
         }
     }
 
@@ -70,7 +84,7 @@ namespace WaveFunctionCollapse
                     }
                 }
 
-                grid[lowestEntropyTile.X, lowestEntropyTile.Y] = lowestEntropyTile.CollapseTileType(rand);
+                grid[lowestEntropyTile.X, lowestEntropyTile.Y] = lowestEntropyTile.Collapse(rand);
                 toCollapse.Remove(lowestEntropyTile);
                 collapsed.Add(lowestEntropyTile);
 
@@ -141,7 +155,7 @@ namespace WaveFunctionCollapse
             entropy = (byte)possibleStates.Count;
         }
 
-        public TileType CollapseTileType(Random rand)
+        public TileType Collapse(Random rand)
         {
             int tileTypeIndex = rand.Next(possibleStates.Count);
             TileType chosenTileType = possibleStates[tileTypeIndex];
@@ -155,25 +169,31 @@ namespace WaveFunctionCollapse
 
         public void Update()
         {
+            if (collapsed) return;
+
             neigbours = GetNeigbours();
+
+            possibleStates = [];
+
+            HashSet<TileType> impossibleStates = [TileType.None];
 
             foreach (TileType type in neigbours)
             {
                 switch (type)
                 {
                     case TileType.Sea:
-                        possibleStates.Remove(TileType.Plains);
-                        possibleStates.Remove(TileType.Forest);
+                        impossibleStates.Add(TileType.Plains);
+                        impossibleStates.Add(TileType.Forest);
                         break;
                     case TileType.Beach:
-                        possibleStates.Remove(TileType.Forest);
+                        impossibleStates.Add(TileType.Forest);
                         break;
                     case TileType.Plains:
-                        possibleStates.Remove(TileType.Sea);
+                        impossibleStates.Add(TileType.Sea);
                         break;
                     case TileType.Forest:
-                        possibleStates.Remove(TileType.Beach);
-                        possibleStates.Remove(TileType.Sea);
+                        impossibleStates.Add(TileType.Beach);
+                        impossibleStates.Add(TileType.Sea);
                         break;
                     case TileType.None:
                         break;
@@ -183,7 +203,43 @@ namespace WaveFunctionCollapse
                 }
             }
 
-            entropy = (byte)possibleStates.Count;
+            List<TileType> validCandidates = [];
+
+            foreach (TileType candidate in TileTypes.Any)
+            {
+                if (!impossibleStates.Contains(candidate))
+                {
+                    validCandidates.Add(candidate);
+                }
+            }
+
+            if (validCandidates.Count == 0)
+            {
+                validCandidates.Add(TileType.None);
+            }
+
+            List<TileType> weightedPool = [];
+
+            foreach(TileType candidate in validCandidates)
+            {
+                int weight = TileTypes.GetBaseWeight(candidate);
+
+                foreach(TileType neighbour in neigbours)
+                {
+                    if (neighbour == candidate)
+                    {
+                        weight += 8;
+                    }
+                }
+
+                for(int i = 0; i < weight; i++)
+                {
+                    weightedPool.Add(candidate);
+                }
+            }
+
+            possibleStates = weightedPool;
+            entropy = (byte)possibleStates.Distinct().Count();
         }
 
         public byte Entropy => entropy;
